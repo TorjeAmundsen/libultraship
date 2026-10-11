@@ -56,6 +56,7 @@ void ControlDeck::WriteToPad(void* pad) {
 void ControlDeck::WriteToOSContPad(OSContPad* pad) {
     SDL_PumpEvents();
     Ship::WheelHandler::GetInstance()->Update();
+    UpdateDSUClient();
 
     if (AllGameInputBlocked()) {
         return;

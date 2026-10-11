@@ -5,6 +5,8 @@
 
 #include "ship/controller/controldevice/controller/mapping/sdl/SDLButtonToAxisDirectionMapping.h"
 #include "ship/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToAxisDirectionMapping.h"
+#include "ship/controller/controldevice/controller/mapping/dsu/DSUButtonToAxisDirectionMapping.h"
+#include "ship/controller/controldevice/controller/mapping/dsu/DSUAxisDirectionToAxisDirectionMapping.h"
 
 #include "ship/config/ConsoleVariable.h"
 #include "ship/utils/StringHelper.h"
@@ -14,6 +16,7 @@
 #include "ship/controller/controldevice/controller/mapping/mouse/WheelHandler.h"
 
 #include "ship/controller/controldeck/ControlDeck.h"
+#include "ship/controller/physicaldevice/DSUClient.h"
 
 namespace Ship {
 std::shared_ptr<ControllerAxisDirectionMapping>
@@ -59,6 +62,44 @@ AxisDirectionMappingFactory::CreateAxisDirectionMappingFromConfig(uint8_t portIn
 
         return std::make_shared<SDLButtonToAxisDirectionMapping>(
             portIndex, stickIndex, static_cast<Direction>(direction), sdlControllerButton);
+    }
+
+    if (mappingClass == "DSUAxisDirectionToAxisDirectionMapping") {
+        int32_t direction = Ship::Context::GetRawInstance()->GetConsoleVariables()->GetInteger(
+            StringHelper::Sprintf("%s.Direction", mappingCvarKey.c_str()).c_str(), -1);
+        int32_t dsuAxis = Ship::Context::GetRawInstance()->GetConsoleVariables()->GetInteger(
+            StringHelper::Sprintf("%s.DSUAxis", mappingCvarKey.c_str()).c_str(), -1);
+        int32_t axisDirection = Ship::Context::GetRawInstance()->GetConsoleVariables()->GetInteger(
+            StringHelper::Sprintf("%s.AxisDirection", mappingCvarKey.c_str()).c_str(), 0);
+
+        if ((direction != LEFT && direction != RIGHT && direction != UP && direction != DOWN) || dsuAxis < 0 ||
+            dsuAxis >= DSU_AXIS_MAX || (axisDirection != NEGATIVE && axisDirection != POSITIVE)) {
+            // something about this mapping is invalid
+            Ship::Context::GetRawInstance()->GetConsoleVariables()->ClearVariable(mappingCvarKey.c_str());
+            Ship::Context::GetRawInstance()->GetConsoleVariables()->Save();
+            return nullptr;
+        }
+
+        return std::make_shared<DSUAxisDirectionToAxisDirectionMapping>(
+            portIndex, stickIndex, static_cast<Direction>(direction), dsuAxis, axisDirection);
+    }
+
+    if (mappingClass == "DSUButtonToAxisDirectionMapping") {
+        int32_t direction = Ship::Context::GetRawInstance()->GetConsoleVariables()->GetInteger(
+            StringHelper::Sprintf("%s.Direction", mappingCvarKey.c_str()).c_str(), -1);
+        int32_t dsuButton = Ship::Context::GetRawInstance()->GetConsoleVariables()->GetInteger(
+            StringHelper::Sprintf("%s.DSUButton", mappingCvarKey.c_str()).c_str(), -1);
+
+        if ((direction != LEFT && direction != RIGHT && direction != UP && direction != DOWN) || dsuButton < 0 ||
+            dsuButton >= DSU_BUTTON_MAX) {
+            // something about this mapping is invalid
+            Ship::Context::GetRawInstance()->GetConsoleVariables()->ClearVariable(mappingCvarKey.c_str());
+            Ship::Context::GetRawInstance()->GetConsoleVariables()->Save();
+            return nullptr;
+        }
+
+        return std::make_shared<DSUButtonToAxisDirectionMapping>(portIndex, stickIndex,
+                                                                 static_cast<Direction>(direction), dsuButton);
     }
 
     if (mappingClass == "KeyboardKeyToAxisDirectionMapping") {
@@ -158,6 +199,20 @@ AxisDirectionMappingFactory::CreateDefaultSDLAxisDirectionMappings(uint8_t portI
     }
 
     return mappings;
+}
+
+std::shared_ptr<ControllerAxisDirectionMapping>
+AxisDirectionMappingFactory::CreateAxisDirectionMappingFromDSUInput(uint8_t portIndex, StickIndex stickIndex,
+                                                                    Direction direction) {
+    const DSURawPress press = DSURawPressForPort(portIndex);
+    if (press.Type == DSURawPress::Kind::Button) {
+        return std::make_shared<DSUButtonToAxisDirectionMapping>(portIndex, stickIndex, direction, press.Index);
+    }
+    if (press.Type == DSURawPress::Kind::Axis) {
+        return std::make_shared<DSUAxisDirectionToAxisDirectionMapping>(portIndex, stickIndex, direction, press.Index,
+                                                                        press.Direction);
+    }
+    return nullptr;
 }
 
 std::shared_ptr<ControllerAxisDirectionMapping>

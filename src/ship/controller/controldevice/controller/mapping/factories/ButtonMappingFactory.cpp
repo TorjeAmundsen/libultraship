@@ -7,9 +7,12 @@
 #include "ship/controller/controldevice/controller/mapping/mouse/MouseWheelToButtonMapping.h"
 #include "ship/controller/controldevice/controller/mapping/sdl/SDLButtonToButtonMapping.h"
 #include "ship/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToButtonMapping.h"
+#include "ship/controller/controldevice/controller/mapping/dsu/DSUButtonToButtonMapping.h"
+#include "ship/controller/controldevice/controller/mapping/dsu/DSUAxisDirectionToButtonMapping.h"
 #include "ship/controller/controldevice/controller/mapping/keyboard/KeyboardScancodes.h"
 #include "ship/controller/controldevice/controller/mapping/mouse/WheelHandler.h"
 #include "ship/controller/controldeck/ControlDeck.h"
+#include "ship/controller/physicaldevice/DSUClient.h"
 
 namespace Ship {
 std::shared_ptr<ControllerButtonMapping> ButtonMappingFactory::CreateButtonMappingFromConfig(uint8_t portIndex,
@@ -54,6 +57,36 @@ std::shared_ptr<ControllerButtonMapping> ButtonMappingFactory::CreateButtonMappi
         }
 
         return std::make_shared<SDLAxisDirectionToButtonMapping>(portIndex, bitmask, sdlControllerAxis, axisDirection);
+    }
+
+    if (mappingClass == "DSUButtonToButtonMapping") {
+        int32_t dsuButton = Ship::Context::GetRawInstance()->GetConsoleVariables()->GetInteger(
+            StringHelper::Sprintf("%s.DSUButton", mappingCvarKey.c_str()).c_str(), -1);
+
+        if (dsuButton < 0 || dsuButton >= DSU_BUTTON_MAX) {
+            // something about this mapping is invalid
+            Ship::Context::GetRawInstance()->GetConsoleVariables()->ClearVariable(mappingCvarKey.c_str());
+            Ship::Context::GetRawInstance()->GetConsoleVariables()->Save();
+            return nullptr;
+        }
+
+        return std::make_shared<DSUButtonToButtonMapping>(portIndex, bitmask, dsuButton);
+    }
+
+    if (mappingClass == "DSUAxisDirectionToButtonMapping") {
+        int32_t dsuAxis = Ship::Context::GetRawInstance()->GetConsoleVariables()->GetInteger(
+            StringHelper::Sprintf("%s.DSUAxis", mappingCvarKey.c_str()).c_str(), -1);
+        int32_t axisDirection = Ship::Context::GetRawInstance()->GetConsoleVariables()->GetInteger(
+            StringHelper::Sprintf("%s.AxisDirection", mappingCvarKey.c_str()).c_str(), 0);
+
+        if (dsuAxis < 0 || dsuAxis >= DSU_AXIS_MAX || (axisDirection != NEGATIVE && axisDirection != POSITIVE)) {
+            // something about this mapping is invalid
+            Ship::Context::GetRawInstance()->GetConsoleVariables()->ClearVariable(mappingCvarKey.c_str());
+            Ship::Context::GetRawInstance()->GetConsoleVariables()->Save();
+            return nullptr;
+        }
+
+        return std::make_shared<DSUAxisDirectionToButtonMapping>(portIndex, bitmask, dsuAxis, axisDirection);
     }
 
     if (mappingClass == "KeyboardKeyToButtonMapping") {
@@ -121,6 +154,18 @@ ButtonMappingFactory::CreateDefaultSDLButtonMappings(uint8_t portIndex, CONTROLL
     }
 
     return mappings;
+}
+
+std::shared_ptr<ControllerButtonMapping>
+ButtonMappingFactory::CreateButtonMappingFromDSUInput(uint8_t portIndex, CONTROLLERBUTTONS_T bitmask) {
+    const DSURawPress press = DSURawPressForPort(portIndex);
+    if (press.Type == DSURawPress::Kind::Button) {
+        return std::make_shared<DSUButtonToButtonMapping>(portIndex, bitmask, press.Index);
+    }
+    if (press.Type == DSURawPress::Kind::Axis) {
+        return std::make_shared<DSUAxisDirectionToButtonMapping>(portIndex, bitmask, press.Index, press.Direction);
+    }
+    return nullptr;
 }
 
 std::shared_ptr<ControllerButtonMapping>

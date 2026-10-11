@@ -9,6 +9,7 @@
 #include "ship/controller/controldevice/controller/mapping/ControllerDefaultMappings.h"
 
 namespace Ship {
+class DSUClient;
 
 /**
  * @brief Manages all controller ports and routes input/blocking requests.
@@ -111,6 +112,17 @@ class ControlDeck {
     /** @brief Returns the global SDL device settings (dead-zone, axis scale, etc.). */
     std::shared_ptr<GlobalSDLDeviceSettings> GetGlobalSDLDeviceSettings();
 
+    /** @brief Returns the DSU (cemuhook) client that feeds DSU mappings. */
+    std::shared_ptr<DSUClient> GetDSUClient();
+
+    /**
+     * @brief Applies the DSU settings and latches the latest DSU state for this frame.
+     *
+     * Starts, restarts or stops the client when CVAR_PREFIX_CONTROLLERS ".DSU.Enabled", ".DSU.Host" or
+     * ".DSU.Port" change, so a settings menu only has to set those. Called once per frame before reading pads.
+     */
+    void UpdateDSUClient();
+
     /** @brief Returns the default mapping configuration applied to new controllers. */
     std::shared_ptr<ControllerDefaultMappings> GetControllerDefaultMappings();
 
@@ -142,6 +154,10 @@ class ControlDeck {
     std::unordered_map<int32_t, bool> mGameInputBlockers;
     std::shared_ptr<ConnectedPhysicalDeviceManager> mConnectedPhysicalDeviceManager;
     std::shared_ptr<GlobalSDLDeviceSettings> mGlobalSDLDeviceSettings;
+    std::shared_ptr<DSUClient> mDSUClient;
+    bool mDSUEnabled = false; ///< DSU settings the client was last started with
+    std::string mDSUHost;
+    int32_t mDSUPort = 0;
     std::shared_ptr<ControllerDefaultMappings> mControllerDefaultMappings;
     std::unordered_map<CONTROLLERBUTTONS_T, std::string> mButtonNames;
 };

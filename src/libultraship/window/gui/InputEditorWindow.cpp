@@ -4,6 +4,8 @@
 #include "ship/utils/StringHelper.h"
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldevice/controller/mapping/sdl/SDLAxisDirectionToButtonMapping.h"
+#include "ship/controller/controldevice/controller/mapping/dsu/DSUAxisDirectionToButtonMapping.h"
+#include "ship/controller/physicaldevice/DSUClient.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "libultraship/libultra/controller.h"
 
@@ -180,6 +182,10 @@ void InputEditorWindow::GetButtonColorsForPhysicalDeviceType(Ship::PhysicalDevic
             buttonColor = BUTTON_COLOR_GAMEPAD_BLUE;
             buttonHoveredColor = BUTTON_COLOR_GAMEPAD_BLUE_HOVERED;
             break;
+        case Ship::PhysicalDeviceType::DSU:
+            buttonColor = BUTTON_COLOR_GAMEPAD_ORANGE;
+            buttonHoveredColor = BUTTON_COLOR_GAMEPAD_ORANGE_HOVERED;
+            break;
         default:
             buttonColor = BUTTON_COLOR_GAMEPAD_PURPLE;
             buttonHoveredColor = BUTTON_COLOR_GAMEPAD_PURPLE_HOVERED;
@@ -290,8 +296,14 @@ void InputEditorWindow::DrawButtonLineEditMappingButton(uint8_t port, CONTROLLER
     ImGui::PopStyleVar();
     ImGui::SameLine(0, 0);
 
+    // Axis-to-button bindings get the threshold cog, SDL and DSU alike (they share the thresholds).
     auto sdlAxisDirectionToButtonMapping = std::dynamic_pointer_cast<Ship::SDLAxisDirectionToButtonMapping>(mapping);
-    if (sdlAxisDirectionToButtonMapping != nullptr) {
+    auto dsuAxisDirectionToButtonMapping = std::dynamic_pointer_cast<Ship::DSUAxisDirectionToButtonMapping>(mapping);
+    if (sdlAxisDirectionToButtonMapping != nullptr || dsuAxisDirectionToButtonMapping != nullptr) {
+        const bool axisIsTrigger = sdlAxisDirectionToButtonMapping != nullptr
+                                       ? sdlAxisDirectionToButtonMapping->AxisIsTrigger()
+                                       : dsuAxisDirectionToButtonMapping->AxisIsTrigger();
+        const bool axisIsStick = !axisIsTrigger;
         ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.0f, 0.5f));
         auto buttonColor = ImGui::GetStyleColorVec4(ImGuiCol_Button);
         auto buttonHoveredColor = ImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered);
@@ -319,7 +331,7 @@ void InputEditorWindow::DrawButtonLineEditMappingButton(uint8_t port, CONTROLLER
 
             auto globalSettings = Ship::Context::GetRawInstance()->GetControlDeck()->GetGlobalSDLDeviceSettings();
 
-            if (sdlAxisDirectionToButtonMapping->AxisIsStick()) {
+            if (axisIsStick) {
                 ImGui::Text("Stick axis threshold:");
 
                 int32_t stickAxisThreshold = globalSettings->GetStickAxisThresholdPercentage();
@@ -357,7 +369,7 @@ void InputEditorWindow::DrawButtonLineEditMappingButton(uint8_t port, CONTROLLER
                 }
             }
 
-            if (sdlAxisDirectionToButtonMapping->AxisIsTrigger()) {
+            if (axisIsTrigger) {
                 ImGui::Text("Trigger axis threshold:");
 
                 int32_t triggerAxisThreshold = globalSettings->GetTriggerAxisThresholdPercentage();
@@ -1230,6 +1242,35 @@ void InputEditorWindow::DrawDeviceToggles(uint8_t portIndex) {
         ImGui::PopStyleColor();
         ImGui::PopItemFlag();
     }
+
+    // DSU slots that are sending, each with the same port toggle as an SDL gamepad.
+    auto dsuClient = Ship::Context::GetRawInstance()->GetControlDeck()->GetDSUClient();
+    for (const uint8_t slot : dsuClient->GetConnectedSlots()) {
+        ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        auto buttonColor = ImGui::GetStyleColorVec4(ImGuiCol_Button);
+        auto buttonHoveredColor = ImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered);
+        GetButtonColorsForPhysicalDeviceType(Ship::PhysicalDeviceType::DSU, buttonColor, buttonHoveredColor);
+        ImGui::PushStyleColor(ImGuiCol_Button, buttonColor);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, buttonHoveredColor);
+        auto notIgnored = !dsuClient->PortIsIgnoringSlot(portIndex, slot);
+        ImGui::PopItemFlag();
+        if (ImGui::Checkbox(StringHelper::Sprintf("###dsuSlot_%d", slot).c_str(), &notIgnored)) {
+            if (notIgnored) {
+                dsuClient->UnignoreSlotForPort(portIndex, slot);
+            } else {
+                dsuClient->IgnoreSlotForPort(portIndex, slot);
+            }
+        };
+        ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        ImGui::SameLine();
+        ImGui::Button(StringHelper::Sprintf("%s DSU slot %d", ICON_FA_GAMEPAD, slot + 1).c_str());
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("From the DSU server at %s", dsuClient->GetServer().c_str());
+        }
+        ImGui::PopStyleColor();
+        ImGui::PopStyleColor();
+        ImGui::PopItemFlag();
+    }
 }
 
 void InputEditorWindow::DrawClearAllButton(uint8_t portIndex) {
@@ -1398,6 +1439,36 @@ void InputEditorWindow::DrawSetDefaultsButton(uint8_t portIndex) {
                     ->ClearAllMappingsForDeviceType(Ship::PhysicalDeviceType::SDLGamepad);
                 Ship::Context::GetRawInstance()->GetControlDeck()->GetControllerByPort(portIndex)->AddDefaultMappings(
                     Ship::PhysicalDeviceType::SDLGamepad);
+                shouldClose = true;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+
+        // DSU has no defaults (the server's layout isn't known), so this only clears.
+        auto dsuButtonColor = ImGui::GetStyleColorVec4(ImGuiCol_Button);
+        auto dsuButtonHoveredColor = ImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered);
+        GetButtonColorsForPhysicalDeviceType(Ship::PhysicalDeviceType::DSU, dsuButtonColor, dsuButtonHoveredColor);
+        ImGui::PushStyleColor(ImGuiCol_Button, dsuButtonColor);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, dsuButtonHoveredColor);
+        if (ImGui::Button(StringHelper::Sprintf("%s %s", ICON_FA_GAMEPAD, "DSU (clear)").c_str())) {
+            ImGui::OpenPopup("Clear DSU mappings");
+        }
+        ImGui::PopStyleColor();
+        ImGui::PopStyleColor();
+        if (ImGui::BeginPopupModal("Clear DSU mappings", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("This will clear all existing mappings for\nDSU on port %d. DSU has no defaults:\nbind by "
+                        "pressing inputs instead.\n\nContinue?",
+                        portIndex + 1);
+            if (ImGui::Button("Cancel")) {
+                shouldClose = true;
+                ImGui::CloseCurrentPopup();
+            }
+            if (ImGui::Button("Clear")) {
+                Ship::Context::GetRawInstance()
+                    ->GetControlDeck()
+                    ->GetControllerByPort(portIndex)
+                    ->ClearAllMappingsForDeviceType(Ship::PhysicalDeviceType::DSU);
                 shouldClose = true;
                 ImGui::CloseCurrentPopup();
             }

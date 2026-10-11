@@ -168,6 +168,10 @@ bool ControllerButton::AddOrEditButtonMappingFromRawPress(CONTROLLERBUTTONS_T bi
     }
 
     if (mapping == nullptr) {
+        mapping = ButtonMappingFactory::CreateButtonMappingFromDSUInput(mPortIndex, bitmask);
+    }
+
+    if (mapping == nullptr) {
         return false;
     }
 

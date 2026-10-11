@@ -1,4 +1,5 @@
 #include "ship/controller/controldeck/ControlDeck.h"
+#include "ship/controller/physicaldevice/DSUClient.h"
 
 #include "ship/Context.h"
 #include "ship/controller/controldevice/controller/Controller.h"
@@ -14,6 +15,7 @@ ControlDeck::ControlDeck(std::vector<CONTROLLERBUTTONS_T> additionalBitmasks,
                          std::unordered_map<CONTROLLERBUTTONS_T, std::string> buttonNames) {
     mConnectedPhysicalDeviceManager = std::make_shared<ConnectedPhysicalDeviceManager>();
     mGlobalSDLDeviceSettings = std::make_shared<GlobalSDLDeviceSettings>();
+    mDSUClient = std::make_shared<DSUClient>();
     mControllerDefaultMappings = controllerDefaultMappings == nullptr ? std::make_shared<ControllerDefaultMappings>()
                                                                       : controllerDefaultMappings;
 }
@@ -37,6 +39,30 @@ void ControlDeck::Init(uint8_t* controllerBits) {
         mPorts[0]->GetConnectedController()->AddDefaultMappings(PhysicalDeviceType::Keyboard);
         mPorts[0]->GetConnectedController()->AddDefaultMappings(PhysicalDeviceType::Mouse);
         mPorts[0]->GetConnectedController()->AddDefaultMappings(PhysicalDeviceType::SDLGamepad);
+    }
+}
+
+std::shared_ptr<DSUClient> ControlDeck::GetDSUClient() {
+    return mDSUClient;
+}
+
+void ControlDeck::UpdateDSUClient() {
+    const auto cvars = Context::GetRawInstance()->GetConsoleVariables();
+    const bool enabled = cvars->GetInteger(CVAR_PREFIX_CONTROLLERS ".DSU.Enabled", 0) != 0;
+    const std::string host = cvars->GetString(CVAR_PREFIX_CONTROLLERS ".DSU.Host", "127.0.0.1");
+    const int32_t port = cvars->GetInteger(CVAR_PREFIX_CONTROLLERS ".DSU.Port", DSU_DEFAULT_PORT);
+    if (enabled != mDSUEnabled || host != mDSUHost || port != mDSUPort) {
+        mDSUEnabled = enabled;
+        mDSUHost = host;
+        mDSUPort = port;
+        if (enabled && port > 0 && port <= UINT16_MAX) {
+            mDSUClient->Start(host, static_cast<uint16_t>(port));
+        } else {
+            mDSUClient->Stop();
+        }
+    }
+    if (enabled) {
+        mDSUClient->LatchState();
     }
 }
 

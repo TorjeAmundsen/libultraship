@@ -12,7 +12,8 @@ enum PhysicalDeviceType {
     Keyboard = 0,   ///< Standard keyboard.
     Mouse = 1,      ///< Mouse (buttons and motion).
     SDLGamepad = 2, ///< SDL-managed game controller.
-    Max = 3         ///< Sentinel / count of device types.
+    DSU = 3,        ///< Controller streamed by a DSU (cemuhook) server over UDP.
+    Max = 4         ///< Sentinel / count of device types.
 };
 
 } // namespace Ship

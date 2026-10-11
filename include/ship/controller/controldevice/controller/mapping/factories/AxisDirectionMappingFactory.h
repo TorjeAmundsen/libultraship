@@ -55,6 +55,19 @@ class AxisDirectionMappingFactory {
     CreateAxisDirectionMappingFromSDLInput(uint8_t portIndex, StickIndex stickIndex, Direction direction);
 
     /**
+     * @brief Creates an axis-direction mapping from whichever DSU input is currently active.
+     *
+     * Used during interactive remapping, after the SDL check finds nothing.
+     *
+     * @param portIndex  The controller port index.
+     * @param stickIndex Which analog stick the new mapping targets.
+     * @param direction  The stick direction the new mapping drives.
+     * @return A new axis-direction mapping, or nullptr if no DSU input is active.
+     */
+    static std::shared_ptr<ControllerAxisDirectionMapping>
+    CreateAxisDirectionMappingFromDSUInput(uint8_t portIndex, StickIndex stickIndex, Direction direction);
+
+    /**
      * @brief Creates an axis-direction mapping from the next detected mouse-wheel input.
      * @param portIndex  The controller port index.
      * @param stickIndex Which analog stick the mapping targets.

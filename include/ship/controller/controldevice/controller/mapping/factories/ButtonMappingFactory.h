@@ -52,6 +52,18 @@ class ButtonMappingFactory {
                                                                                     CONTROLLERBUTTONS_T bitmask);
 
     /**
+     * @brief Creates a button mapping from whichever DSU input is currently pressed.
+     *
+     * Used during interactive remapping, after the SDL check finds nothing.
+     *
+     * @param portIndex The controller port index.
+     * @param bitmask   The button bitmask the new mapping will target.
+     * @return A new button mapping, or nullptr if no DSU input is active.
+     */
+    static std::shared_ptr<ControllerButtonMapping> CreateButtonMappingFromDSUInput(uint8_t portIndex,
+                                                                                    CONTROLLERBUTTONS_T bitmask);
+
+    /**
      * @brief Creates a button mapping from the next detected mouse-wheel input.
      * @param portIndex The controller port index.
      * @param bitmask   The button bitmask to bind.

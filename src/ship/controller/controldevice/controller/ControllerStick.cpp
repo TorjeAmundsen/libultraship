@@ -297,6 +297,11 @@ bool ControllerStick::AddOrEditAxisDirectionMappingFromRawPress(Direction direct
     }
 
     if (mapping == nullptr) {
+        mapping =
+            AxisDirectionMappingFactory::CreateAxisDirectionMappingFromDSUInput(mPortIndex, mStickIndex, direction);
+    }
+
+    if (mapping == nullptr) {
         return false;
     }
 

@@ -151,6 +151,8 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
         ENABLE_DX11
         NOMINMAX
     )
+    # The DSU client's UDP socket.
+    target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
